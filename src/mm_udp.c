@@ -3,7 +3,7 @@
  *
  * www.github.com/hharte/mm_manager
  *
- * Copyright (c) 2022-2023, Howard M. Harte
+ * Copyright (c) 2022-2025, Howard M. Harte
  */
 
 #include <stdio.h>
@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #endif  /* _WIN32 */
 
 #include "mm_manager.h"

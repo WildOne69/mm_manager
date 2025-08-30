@@ -3,6 +3,68 @@
 cmake_minimum_required (VERSION 3.25)
 
 project ("mm_manager" LANGUAGES C)
+# --- Versioning ---
+find_package(Git QUIET)
+set(FULL_GIT_VERSION "0.0.0-nogit")     # Default full descriptive version
+set(CMAKE_PROJECT_VERSION "0.0.0")      # Default version for project() command
+
+if(Git_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+    # 1. Get the full descriptive version (tags, hash, dirty status)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --dirty --always
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE _full_git_version_temp
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE GIT_DESCRIBE_RESULT
+    )
+    if(GIT_DESCRIBE_RESULT EQUAL 0)
+        set(FULL_GIT_VERSION ${_full_git_version_temp})
+        message(STATUS "Raw Git describe version: ${FULL_GIT_VERSION}")
+    else()
+        message(WARNING "git describe --tags --dirty --always failed. Using fallback version ${FULL_GIT_VERSION}.")
+    endif()
+
+    # 2. Try to get the latest tag and extract Major.Minor.Patch for project()
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --abbrev=0
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE LATEST_TAG
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE GIT_TAG_RESULT
+    )
+    if(GIT_TAG_RESULT EQUAL 0)
+        # Try to extract X.Y.Z or X.Y from tag (allowing optional 'v' prefix)
+        string(REGEX MATCH "^v?([0-9]+\\.[0-9]+(\\.[0-9]+)?)" _extracted_version ${LATEST_TAG})
+        if(CMAKE_MATCH_1)
+            set(CMAKE_PROJECT_VERSION ${CMAKE_MATCH_1})
+            message(STATUS "Using semantic version for CMake project: ${CMAKE_PROJECT_VERSION}")
+        else()
+            message(WARNING "Latest Git tag (${LATEST_TAG}) doesn't match expected format (X.Y or X.Y.Z). Using default ${CMAKE_PROJECT_VERSION} for project().")
+        endif()
+    else()
+        message(WARNING "Could not get latest Git tag. Using default version ${CMAKE_PROJECT_VERSION} for project().")
+    endif()
+
+    if("${CMAKE_PROJECT_VERSION}" STREQUAL "${FULL_GIT_VERSION}")
+        set(FULL_GIT_VERSION "OFFICIAL RELEASE")
+        message(STATUS "Current commit matches latest tag. Setting version to OFFICIAL RELEASE.")
+    endif()
+
+else()
+    message(WARNING "Git not found or not a Git repository. Using fallback versions.")
+    # Defaults are already set above
+endif()
+
+# Project name and version (using sanitized, CMake-compatible version)
+project(mm_manager VERSION ${CMAKE_PROJECT_VERSION})
+
+# Add version definitions globally for all subsequent targets
+add_compile_definitions(
+    CMAKE_VERSION_STR="${CMAKE_PROJECT_VERSION}"
+    GIT_VERSION_STR="${FULL_GIT_VERSION}"
+)
 
 set(ignoreMe "${CMAKE_ASM_COMPILER}")
 set(ignoreMe "${CMAKE_ASM_COMPILER_LAUNCHER}")
@@ -187,8 +249,23 @@ install(FILES LICENSE DESTINATION .)
 install(FILES README.md DESTINATION .)
 install(FILES generate_intl_sbr.py generate_lcd.py generate_lcd_lata.py generate_lcd_lir.py generate_npa.py DESTINATION bin)
 
-set(CPACK_GENERATOR "ZIP")
-set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
-set(CPACK_PACKAGE_VERSION ${GIT_REV})
-SET(CPACK_OUTPUT_FILE_PREFIX ${CMAKE_CURRENT_SOURCE_DIR})
+# --- CPack configuration ---
+
+# Set basic package information
+set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
+set(CPACK_PACKAGE_VENDOR "Howard M. Harte")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Millennium Manager")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+if(WIN32)
+  set(CPACK_GENERATOR "ZIP")
+else()
+  set(CPACK_GENERATOR "TGZ")
+endif()
+
 include(CPack)

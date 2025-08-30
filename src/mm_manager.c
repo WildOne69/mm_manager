@@ -7,7 +7,7 @@
  *
  * www.github.com/hharte/mm_manager
  *
- * Copyright (c) 2020-2023, Howard M. Harte
+ * Copyright (c) 2020-2025, Howard M. Harte
  */
 
 #include <stdio.h>   /* Standard input/output definitions */
@@ -32,10 +32,6 @@
 #include "mm_manager.h"
 #include "mm_serial.h"
 #include "mm_udp.h"
-
-#ifndef VERSION
-# define VERSION "Unknown"
-#endif /* VERSION */
 
 #define JAN12020 1577865600
 
@@ -373,7 +369,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (quiet == 0) {
-        printf("mm_manager v0.8 [%s] - (c) 2020-2023, Howard M. Harte\n\n", VERSION);
+        printf("mm_manager %s [%s] (c) 2020-2025 - Howard M. Harte\n",
+            CMAKE_VERSION_STR, GIT_VERSION_STR);
     }
 
     /* Parse command line again to get the rest of the options. */

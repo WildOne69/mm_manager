@@ -660,7 +660,8 @@ typedef struct dlog_mt_query_term_err {
 #define RESTRICTION_LEVEL_NONE          (0) /* No restrictions - DISABLED */
 #define RESTRICTION_LEVEL_EMERGENCY     (1) /* Emergency calling only */
 #define RESTRICTION_LEVEL_DENY_COIN_SC  (2) /* Deny all Coin and Smart Card calls */
-#define RESTRICTION_LEVEL_NO_E2E_SIGNAL (3) /* No End-to-End Signalling (Coin and Smart Card) */
+#define RESTRICTION_LEVEL_NO_E2E_SIGNAL (3) /* No End-to-End Signalling (Coin and Smart Card only) */
+#define RESTRICTION_LEVEL_CALLSCRN      (4) /* Call Screening List and Repertory dial list only */
 
 #define LIMSERV_DATA_MAX_ENTRIES        (5)
 typedef struct servlev_entry {
@@ -842,10 +843,13 @@ typedef struct dlog_mt_carrier_table_mtr1 {
 
 /* RDLIST - (Repertory Dialer List) pp. 2-329 */
 typedef struct rdlist_table_entry {
-    uint8_t  pad[3];
+    uint8_t  call_type;            /* Call Type (e.g., Local, etc.) */
+    uint8_t  flags;                /* Contains single-bit flags, like the "Call Rating" selection. */
+    uint8_t  rate_carrier_index;   /* Rate or Carrier Index value */
     uint8_t  phone_number[8];
     char     display_prompt[40];
-    uint8_t  pad2[6];
+    uint32_t customer_ref;        /* "Customer Reference #" for billing and tracking */
+    uint16_t button_indicators;   /* A bitmask for the 12 "Button Indicators" checkboxes */
 } PACKED rdlist_table_entry_t;
 
 #define RDLIST_MAX                  10

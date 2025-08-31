@@ -3,7 +3,7 @@
  *
  * www.github.com/hharte/mm_manager
  *
- * Copyright (c) 2020-2023, Howard M. Harte
+ * Copyright (c) 2020-2025, Howard M. Harte
  *
  * Reference: https://wiki.muc.ccc.de/millennium:dlog:dlog_mt_rep_dial_list
  *
@@ -70,9 +70,9 @@ int main(int argc, char *argv[]) {
 
     fclose(instream);
 
-    printf("+-----------------------------------------------------------------------------------------------+\n" \
-           "|  # | Pad            | Number           | Display Prompt       |  Pad2                         |\n" \
-           "+----+----------------+------------------+----------------------+-------------------------------+");
+    printf("+---------------------------------------------------------------------------------------------------------------------------+\n" \
+           "|  # |        Call Type / Payment Type        | Rate | Flags | Number           | Display Prompt       |  Cust Ref |  Flags |\n" \
+           "+----+----------------------------------------+------+-------+------------------+----------------------+-----------+--------+");
 
     for (rdlist_index = 0; rdlist_index < RDLIST_MAX; rdlist_index++) {
         callscrn_num_to_string(phone_number, sizeof(phone_number), ptable->rd[rdlist_index].phone_number, 8);
@@ -91,25 +91,22 @@ int main(int argc, char *argv[]) {
             snprintf(display_prompt_string2, sizeof(display_prompt_string2), "%s", "                    ");
         }
 
-        printf("\n| %2d | 0x%02x,0x%02x,0x%02x | %16s | %s | 0x%02x,0x%02x,0x%02x,0x%02x,0x%02x,0x%02x |",
-               rdlist_index,
-               ptable->rd[rdlist_index].pad[0],
-               ptable->rd[rdlist_index].pad[1],
-               ptable->rd[rdlist_index].pad[2],
-               phone_number,
-               display_prompt_string,
-               ptable->rd[rdlist_index].pad2[0],
-               ptable->rd[rdlist_index].pad2[1],
-               ptable->rd[rdlist_index].pad2[2],
-               ptable->rd[rdlist_index].pad2[3],
-               ptable->rd[rdlist_index].pad2[4],
-               ptable->rd[rdlist_index].pad2[5]);
+        char call_type_str[38];
 
-        printf("\n|    |                |                  | %s |                               |",
+        printf("\n| %2d | %38s | 0x%02x |  0x%02x | %16s | %s |  0x%06x | 0x%04x |",
+            rdlist_index,
+            call_type_to_string(ptable->rd[rdlist_index].call_type, call_type_str, sizeof(call_type_str)),
+            ptable->rd[rdlist_index].rate_carrier_index,
+            ptable->rd[rdlist_index].flags,
+            phone_number,
+            display_prompt_string,
+            ptable->rd[rdlist_index].customer_ref,
+            ptable->rd[rdlist_index].button_indicators);
+        printf("\n|    |                                        |      |       |                  | %s |           |        |",
                display_prompt_string2);
     }
 
-    printf("\n+-----------------------------------------------------------------------------------------------+\n");
+    printf("\n+---------------------------------------------------------------------------------------------------------------------------+\n");
 
     /* Modify RDLIST table */
 

@@ -46,3 +46,5 @@ npa_report.csv
 out/
 *.pcap
 .vs/
+*.bin
+.vscode/

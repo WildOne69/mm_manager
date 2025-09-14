@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nortel Millennium ADMESS Table (0x1D) Editor</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@400&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom styles for the VFD display and other UI elements */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* bg-gray-900 */
+        }
+
+        .vfd-screen {
+            background-color: #0c1015;
+            border: 2px solid #334155; /* slate-700 */
+            border-radius: 8px;
+            padding: 1rem;
+            width: 100%;
+            font-family: 'Chivo Mono', monospace; /* Set font here for sizing */
+            font-size: 1.25rem;
+            max-width: 17em; /* Tightly frame 20 chars with padding */
+            height: 80px; /* Fixed height for two lines */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+        }
+
+        .vfd-text {
+            font-family: inherit; /* Inherit from container */
+            color: #4ade80; /* green-400 */
+            text-shadow: 0 0 5px #4ade80, 0 0 10px #4ade80, 0 0 15px #22c55e; /* green-500 */
+            font-size: inherit; /* Inherit from container */
+            letter-spacing: 0.1em;
+            white-space: pre; /* Preserve spaces for alignment */
+        }
+
+        /* Style for table inputs to make them blend in */
+        .table-input {
+            background-color: transparent;
+            border: 1px solid #4a5568; /* gray-600 */
+            border-radius: 4px;
+            padding: 4px 8px;
+            width: 100%;
+            color: #e2e8f0; /* slate-200 */
+        }
+
+            .table-input:focus {
+                outline: none;
+                border-color: #4ade80; /* green-400 */
+                box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.5);
+            }
+    </style>
+</head>
+<body class="text-slate-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl bg-slate-800 rounded-lg shadow-xl p-6 space-y-6">
+
+        <div class="flex flex-col items-center space-y-6">
+            <h1 class="text-2xl font-bold text-center">Nortel Millennium ADMESS Table (0x1D) Editor</h1>
+
+            <div id="vfd-container" class="vfd-screen">
+                <div id="vfd-line1" class="vfd-text"></div>
+                <div id="vfd-line2" class="vfd-text"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+                <div class="bg-slate-700 p-4 rounded-md">
+                    <h3 class="font-semibold mb-3">Phone State</h3>
+                    <div class="flex flex-col space-y-2">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="radio" name="phoneState" value="on-hook" class="form-radio" checked>
+                            <span>On-Hook (Idle)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="radio" name="phoneState" value="off-hook" class="form-radio">
+                            <span>Off-Hook (Dialing)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="radio" name="phoneState" value="call-established" class="form-radio">
+                            <span>Call Established</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="radio" name="phoneState" value="all-messages" class="form-radio">
+                            <span>All Messages</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="bg-slate-700 p-4 rounded-md space-y-3">
+                    <h3 class="font-semibold mb-2">File & Animation</h3>
+                    <div class="flex items-center space-x-2">
+                        <label for="file-input" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-center rounded-md cursor-pointer transition">
+                            Choose .bin file
+                        </label>
+                        <input type="file" id="file-input" class="hidden" accept=".bin">
+                        <button id="download-btn" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition disabled:bg-slate-500 disabled:cursor-not-allowed" disabled>Download .bin</button>
+                    </div>
+                    <div id="file-info" class="text-xs text-slate-400 h-4">No file loaded.</div>
+                    <div class="flex items-center space-x-2">
+                        <button id="play-pause-btn" class="w-full px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-md transition disabled:bg-slate-500 disabled:cursor-not-allowed" disabled>Play</button>
+                        <button id="restart-btn" class="w-full px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-md transition disabled:bg-slate-500 disabled:cursor-not-allowed" disabled>Restart</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="table-container" class="w-full overflow-x-auto">
+        </div>
+
+        <div class="text-center mt-6">
+            <a href="https://github.com/hharte/mm_manager" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                mm_manager (c) 2025 - Howard M. Harte
+            </a>
+        </div>
+
+    </div>
+
+    <script>
+        /*
+         * =================================================================
+         * CONSTANTS & STATE
+         * =================================================================
+         */
+
+        const VFD_WIDTH = 20;
+        const ADMESS_ENTRY_SIZE = 24;
+        const ADMESS_MSG_COUNT = 20;
+
+        /* Bitmask for the "Blank Before" attribute */
+        const ADMESS_ATTR_BLANK_BEFORE = 0x40;
+
+        /* Map of base attribute codes to their descriptions */
+        const ADMESS_ATTR_MAP = {
+            0: "Permanent",
+            1: "Flashing (1s)",
+            2: "Flashing (Alternating)",
+            3: "Scrolling In",
+            4: "Scrolling Out",
+            5: "Scroll In, then Out",
+        };
+
+        /* Application State */
+        let admessTable = [];
+        let currentFileName = "";
+        let phoneState = 'on-hook';
+        let isPaused = true;
+        let currentPromptIndex = 0;
+
+        /* Timers and Animation State */
+        let animationTimer = null;
+        let flashTimer = null;
+        let animationState = {
+            step: 0,
+            isFlashing: false,
+            lastText: ' '.repeat(VFD_WIDTH)
+        };
+
+
+        /*
+         * =================================================================
+         * DOM ELEMENTS
+         * =================================================================
+         */
+
+        const vfdLine1 = document.getElementById('vfd-line1');
+        const vfdLine2 = document.getElementById('vfd-line2');
+        const fileInput = document.getElementById('file-input');
+        const downloadBtn = document.getElementById('download-btn');
+        const fileInfo = document.getElementById('file-info');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const tableContainer = document.getElementById('table-container');
+        const stateRadios = document.querySelectorAll('input[name="phoneState"]');
+
+
+        /*
+         * =================================================================
+         * EVENT LISTENERS
+         * =================================================================
+         */
+
+        document.addEventListener('DOMContentLoaded', initialize);
+        fileInput.addEventListener('change', handleFileSelect);
+        downloadBtn.addEventListener('click', handleDownload);
+        playPauseBtn.addEventListener('click', togglePlayPause);
+        restartBtn.addEventListener('click', restartAnimation);
+        stateRadios.forEach(radio => radio.addEventListener('change', handleStateChange));
+
+
+        /*
+         * =================================================================
+         * INITIALIZATION LOGIC
+         * =================================================================
+         */
+
+        /**
+         * Initializes the application on page load.
+         */
+        function initialize() {
+            updateVFD();
+        }
+
+
+        /*
+         * =================================================================
+         * FILE HANDLING
+         * =================================================================
+         */
+
+        /**
+         * Handles the user selecting a .bin file. Reads and parses the file.
+         * @param {Event} event - The file input change event.
+         */
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            currentFileName = file.name;
+            fileInfo.textContent = `Loading: ${currentFileName}...`;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const buffer = e.target.result;
+                const expectedSize = ADMESS_ENTRY_SIZE * ADMESS_MSG_COUNT;
+                if (buffer.byteLength !== expectedSize) {
+                    fileInfo.textContent = `Error: Invalid file size. Expected ${expectedSize} bytes.`;
+                    updateVFD(undefined, 'ADMESS table invalid!');
+                    return;
+                }
+                parseAdmessTable(buffer);
+                renderEditorTable();
+
+                /* Enable controls and start the animation */
+                playPauseBtn.disabled = false;
+                restartBtn.disabled = false;
+                downloadBtn.disabled = true; /* Disabled until a change is made */
+                fileInfo.textContent = `Loaded: ${currentFileName}`;
+                isPaused = false;
+                updatePlayPauseButton();
+                resetAndStartAnimation();
+            };
+            reader.onerror = () => {
+                fileInfo.textContent = "Error reading file.";
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        /**
+         * Parses the ArrayBuffer into the admessTable JavaScript object array.
+         * @param {ArrayBuffer} buffer - The raw binary data from the file.
+         */
+        function parseAdmessTable(buffer) {
+            admessTable = [];
+            const dataView = new DataView(buffer);
+            const decoder = new TextDecoder('iso-8859-1');
+
+            for (let i = 0; i < ADMESS_MSG_COUNT; i++) {
+                const offset = i * ADMESS_ENTRY_SIZE;
+
+                const display_time = dataView.getUint16(offset, true); /* true for little-endian */
+                const display_attr = dataView.getUint8(offset + 2);
+
+                /* Spare byte at offset + 3 is ignored */
+
+                const textBytes = new Uint8Array(buffer, offset + 4, VFD_WIDTH);
+                const message_text = decoder.decode(textBytes);
+
+                admessTable.push({
+                    display_time,
+                    display_attr,
+                    message_text,
+                });
+            }
+        }
+
+        /**
+         * Serializes the admessTable back into a .bin file and triggers a download.
+         */
+        function handleDownload() {
+            const buffer = new ArrayBuffer(admessTable.length * ADMESS_ENTRY_SIZE);
+            const dataView = new DataView(buffer);
+
+            admessTable.forEach((entry, i) => {
+                const offset = i * ADMESS_ENTRY_SIZE;
+                dataView.setUint16(offset, entry.display_time, true); /* little-endian */
+                dataView.setUint8(offset + 2, entry.display_attr);
+                dataView.setUint8(offset + 3, 0); // Spare byte
+
+                // Manually encode to ISO-8859-1 (Latin-1)
+                const text = entry.message_text.padEnd(VFD_WIDTH, ' ');
+                for (let j = 0; j < VFD_WIDTH; j++) {
+                    dataView.setUint8(offset + 4 + j, text.charCodeAt(j) & 0xFF);
+                }
+            });
+
+            const blob = new Blob([buffer], { type: 'application/octet-stream' });
+
+            // This is the most compatible method for downloading files in a sandboxed environment.
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = currentFileName || 'admess_table.bin';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            downloadBtn.disabled = true; /* Re-disable after download */
+        }
+
+
+        /*
+         * =================================================================
+         * UI & TABLE RENDERING
+         * =================================================================
+         */
+
+        /**
+         * Renders the interactive editor table from the parsed admessTable data.
+         */
+        function renderEditorTable() {
+            let html = `
+                        <div class="bg-slate-900/50 p-4 rounded-md">
+                            <h2 class="text-xl font-semibold mb-4 text-center">ADMESS Table Editor</h2>
+                            <div class="overflow-auto max-h-[400px]">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="border-b border-slate-600">
+                                            <th class="p-2 w-12">#</th>
+                                            <th class="p-2">Message Text</th>
+                                            <th class="p-2 w-24">Time (s)</th>
+                                            <th class="p-2 w-48">Attribute</th>
+                                            <th class="p-2 w-32">Blank Before</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                    `;
+
+            admessTable.forEach((entry, index) => {
+                const isBlankBefore = (entry.display_attr & ADMESS_ATTR_BLANK_BEFORE) !== 0;
+                const baseAttr = entry.display_attr & ~ADMESS_ATTR_BLANK_BEFORE;
+
+                html += `
+                            <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                                <td class="p-2 font-mono">${index + 1}</td>
+                                <td class="p-2">
+                                    <input type="text" value="${entry.message_text.trimEnd()}" data-index="${index}" data-field="message_text" maxlength="20" class="table-input font-mono">
+                                </td>
+                                <td class="p-2">
+                                    <input type="number" value="${entry.display_time / 100}" data-index="${index}" data-field="display_time" step="0.01" min="0" class="table-input">
+                                </td>
+                                <td class="p-2">
+                                    <select data-index="${index}" data-field="display_attr" class="table-input">
+                                        ${Object.entries(ADMESS_ATTR_MAP).map(([code, name]) =>
+                    `<option value="${code}" ${Number(code) === baseAttr ? 'selected' : ''}>${name}</option>`
+                ).join('')}
+                                    </select>
+                                </td>
+                                <td class="p-2 text-center">
+                                    <input type="checkbox" data-index="${index}" data-field="blank_before" ${isBlankBefore ? 'checked' : ''} class="form-checkbox h-5 w-5">
+                                </td>
+                            </tr>
+                        `;
+            });
+
+            html += `</tbody></table></div></div>`;
+            tableContainer.innerHTML = html;
+
+            /* Add event listeners to the newly created inputs */
+            tableContainer.querySelectorAll('input, select').forEach(el => {
+                el.addEventListener('change', updateAdmessFromTable);
+            });
+        }
+
+        /**
+         * Updates the in-memory admessTable when a user edits a field in the table.
+         * @param {Event} event - The input change event.
+         */
+        function updateAdmessFromTable(event) {
+            const el = event.target;
+            const index = parseInt(el.dataset.index, 10);
+            const field = el.dataset.field;
+
+            if (isNaN(index)) return;
+
+            const entry = admessTable[index];
+
+            switch (field) {
+                case 'message_text':
+                    entry.message_text = el.value.padEnd(VFD_WIDTH, ' ');
+                    break;
+                case 'display_time':
+                    entry.display_time = Math.round(parseFloat(el.value) * 100);
+                    break;
+                case 'display_attr':
+                    const isBlankBefore = (entry.display_attr & ADMESS_ATTR_BLANK_BEFORE) !== 0;
+                    entry.display_attr = parseInt(el.value, 10) | (isBlankBefore ? ADMESS_ATTR_BLANK_BEFORE : 0);
+                    break;
+                case 'blank_before':
+                    if (el.checked) {
+                        entry.display_attr |= ADMESS_ATTR_BLANK_BEFORE;
+                    } else {
+                        entry.display_attr &= ~ADMESS_ATTR_BLANK_BEFORE;
+                    }
+                    break;
+            }
+
+            downloadBtn.disabled = false;
+            restartAnimation();
+        }
+
+        /*
+         * =================================================================
+         * VFD UPDATE & STATE LOGIC
+         * =================================================================
+         */
+
+        /**
+         * Main function to update the VFD text based on the current application state.
+         * @param {string} [line1Text] - Optional text for line 1.
+         * @param {string} [line2Text] - Optional text for line 2.
+         */
+        function updateVFD(line1Text, line2Text) {
+            if (line1Text !== undefined) {
+                vfdLine1.textContent = line1Text.padEnd(VFD_WIDTH, ' ');
+            }
+            if (line2Text !== undefined) {
+                vfdLine2.textContent = line2Text.padEnd(VFD_WIDTH, ' ');
+                animationState.lastText = vfdLine2.textContent;
+            }
+
+            if (line1Text === undefined && line2Text === undefined) {
+                switch (phoneState) {
+                    case 'on-hook':
+                        vfdLine1.textContent = 'Please lift receiver'.padEnd(VFD_WIDTH, ' ');
+                        /* Line 2 is handled by the animation engine */
+                        if (admessTable.length === 0) {
+                            vfdLine2.textContent = 'Load ADMESS table'.padEnd(VFD_WIDTH, ' ');
+                        }
+                        break;
+                    case 'all-messages':
+                        vfdLine1.textContent = 'All Messages Cycle...'.padEnd(VFD_WIDTH, ' ');
+                        if (admessTable.length === 0) {
+                            vfdLine2.textContent = 'Load ADMESS table'.padEnd(VFD_WIDTH, ' ');
+                        }
+                        break;
+                }
+            }
+        }
+
+        /**
+         * Handles changes to the phone state radio buttons.
+         * @param {Event} event - The radio button change event.
+         */
+        function handleStateChange(event) {
+            phoneState = event.target.value;
+            stopAllAnimations();
+
+            /* Update VFD with static text for certain states */
+            updateVFD();
+
+            /* If state supports animations, restart the sequence */
+            if (phoneState !== 'off-hook') {
+                if (admessTable.length > 0) {
+                    resetAndStartAnimation();
+                }
+            }
+        }
+
+
+        /*
+         * =================================================================
+         * ANIMATION ENGINE
+         * =================================================================
+         */
+
+        /**
+         * Stops all active timers and intervals for animations.
+         */
+        function stopAllAnimations() {
+            clearTimeout(animationTimer);
+            clearInterval(flashTimer);
+            animationTimer = null;
+            flashTimer = null;
+        }
+
+        /**
+         * Toggles the paused state of the animation.
+         */
+        function togglePlayPause() {
+            isPaused = !isPaused;
+            updatePlayPauseButton();
+            if (!isPaused) {
+                processPrompt();
+            } else {
+                stopAllAnimations();
+            }
+        }
+
+        /**
+         * Resets the animation to the beginning of the sequence.
+         */
+        function restartAnimation() {
+            if (admessTable.length === 0) return;
+            isPaused = false;
+            updatePlayPauseButton();
+            resetAndStartAnimation();
+        }
+
+        /**
+         * Updates the text of the Play/Pause button.
+         */
+        function updatePlayPauseButton() {
+            playPauseBtn.textContent = isPaused ? 'Play' : 'Pause';
+        }
+
+        /**
+         * Resets the prompt index and starts the animation sequence.
+         */
+        function resetAndStartAnimation() {
+            stopAllAnimations();
+
+            /* Determine the starting message index based on phone state */
+            if (phoneState === 'on-hook') {
+                currentPromptIndex = 0; // Messages 1-10
+            } else if (phoneState === 'call-established') {
+                currentPromptIndex = 10; // Messages 11-20
+            } else if (phoneState === 'all-messages') {
+                currentPromptIndex = 0; // Messages 1-20
+            }
+
+            processPrompt();
+        }
+
+        /**
+         * Processes the current message in the ADMESS table and sets up its animation.
+         */
+        function processPrompt() {
+            stopAllAnimations();
+            if (isPaused || admessTable.length === 0) return;
+
+            /* Define the valid range of messages for the current state */
+            let startIndex = 0;
+            let endIndex = 19;
+
+            if (phoneState === 'on-hook') {
+                endIndex = 9;
+            } else if (phoneState === 'call-established') {
+                startIndex = 10;
+            }
+
+            if (currentPromptIndex < startIndex || currentPromptIndex > endIndex) {
+                currentPromptIndex = startIndex;
+            }
+
+            const prompt = admessTable[currentPromptIndex];
+            const baseAttr = prompt.display_attr & ~ADMESS_ATTR_BLANK_BEFORE;
+
+            /* Special case: skip empty messages with zero display time, unless it's a scrolling message */
+            const isScrolling = baseAttr >= 3 && baseAttr <= 5;
+            if (!prompt.message_text.trim() && prompt.display_time === 0 && !isScrolling) {
+                currentPromptIndex++;
+                processPrompt();
+                return;
+            }
+
+            const isBlankBefore = (prompt.display_attr & ADMESS_ATTR_BLANK_BEFORE) !== 0;
+
+            const startAnimation = () => {
+                const duration = prompt.display_time * 10; // Convert 1/100s to ms
+
+                const advanceToNext = () => {
+                    currentPromptIndex++;
+                    if (currentPromptIndex > endIndex) {
+                        currentPromptIndex = startIndex;
+                    }
+                    processPrompt();
+                };
+
+                switch (baseAttr) {
+                    case 0: // Permanent
+                        updateVFD(undefined, prompt.message_text);
+                        animationTimer = setTimeout(advanceToNext, duration);
+                        break;
+
+                    case 1: // Flashing (1s)
+                        updateVFD(undefined, prompt.message_text); // Show message immediately
+                        animationState.isFlashing = false; // Prepare for the first tick to show blank
+                        flashTimer = setInterval(() => {
+                            const text = animationState.isFlashing ? prompt.message_text : ' '.repeat(VFD_WIDTH);
+                            updateVFD(undefined, text);
+                            animationState.isFlashing = !animationState.isFlashing;
+                        }, 1000);
+                        animationTimer = setTimeout(() => {
+                            clearInterval(flashTimer);
+                            advanceToNext();
+                        }, duration);
+                        break;
+
+                    case 2: // Flashing (Alternating)
+                        const nextPromptIndex = (currentPromptIndex + 1 > endIndex) ? startIndex : currentPromptIndex + 1;
+                        const nextPrompt = admessTable[nextPromptIndex];
+                        animationState.isFlashing = true;
+                        flashTimer = setInterval(() => {
+                            const text = animationState.isFlashing ? prompt.message_text : nextPrompt.message_text;
+                            updateVFD(undefined, text);
+                            animationState.isFlashing = !animationState.isFlashing;
+                        }, 1000);
+                        animationTimer = setTimeout(() => {
+                            clearInterval(flashTimer);
+                            currentPromptIndex++; /* Skip the next message as it was used */
+                            advanceToNext();
+                        }, duration);
+                        break;
+
+                    case 3: // Scrolling In
+                        animationState.step = 0;
+                        const scrollInText = prompt.message_text;
+                        const previousText = isBlankBefore ? ' '.repeat(VFD_WIDTH) : animationState.lastText;
+
+                        flashTimer = setInterval(() => {
+                            animationState.step++;
+                            const combined = previousText + scrollInText;
+                            const start = animationState.step;
+                            const text = combined.substring(start, start + VFD_WIDTH);
+                            updateVFD(undefined, text);
+
+                            if (animationState.step >= VFD_WIDTH) {
+                                clearInterval(flashTimer);
+                                animationTimer = setTimeout(advanceToNext, duration);
+                            }
+                        }, 125); // 125ms per step
+                        break;
+
+                    case 4: // Scrolling Out
+                        updateVFD(undefined, prompt.message_text);
+                        animationState.step = 0;
+                        animationTimer = setTimeout(() => {
+                            flashTimer = setInterval(() => {
+                                animationState.step++;
+                                const text = (prompt.message_text + ' '.repeat(VFD_WIDTH)).substring(animationState.step, animationState.step + VFD_WIDTH);
+                                updateVFD(undefined, text);
+
+                                if (animationState.step >= VFD_WIDTH) {
+                                    clearInterval(flashTimer);
+                                    advanceToNext();
+                                }
+                            }, 125);
+                        }, duration);
+                        break;
+
+                    case 5: // Scroll In, then Out
+                        animationState.step = 0;
+                        const scrollInOutText = prompt.message_text;
+                        const prevText = isBlankBefore ? ' '.repeat(VFD_WIDTH) : animationState.lastText;
+
+                        flashTimer = setInterval(() => {
+                            animationState.step++;
+                            const combined = prevText + scrollInOutText;
+                            const start = animationState.step;
+                            const text = combined.substring(start, start + VFD_WIDTH);
+                            updateVFD(undefined, text);
+
+                            if (animationState.step >= VFD_WIDTH) {
+                                clearInterval(flashTimer);
+                                /* Now pause for display time */
+                                animationTimer = setTimeout(() => {
+                                    /* Then scroll out */
+                                    animationState.step = 0;
+                                    flashTimer = setInterval(() => {
+                                        animationState.step++;
+                                        const text = (scrollInOutText + ' '.repeat(VFD_WIDTH)).substring(animationState.step, animationState.step + VFD_WIDTH);
+                                        updateVFD(undefined, text);
+
+                                        if (animationState.step >= VFD_WIDTH) {
+                                            clearInterval(flashTimer);
+                                            advanceToNext();
+                                        }
+                                    }, 125);
+                                }, duration);
+                            }
+                        }, 125);
+                        break;
+
+                    default: // Unknown attribute, treat as Permanent
+                        updateVFD(undefined, prompt.message_text);
+                        animationTimer = setTimeout(advanceToNext, duration);
+                        break;
+                }
+            };
+
+            if (isBlankBefore) {
+                updateVFD(undefined, ' '.repeat(VFD_WIDTH));
+                animationTimer = setTimeout(startAnimation, 200); // Short delay for blanking
+            } else {
+                startAnimation();
+            }
+        }
+    </script>
+</body>
+</html>

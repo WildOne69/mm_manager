@@ -436,6 +436,8 @@ In the case of large table download (> 245 bytes) to the Millennium terminal, th
 
 The following are some of the tables used by the Millennium terminal.  They should be customized (using a hex editor) for your specific phone.  Some parameters (like NCC numbers and Access Code) can be changed via command-line parameters to `mm_manager`.
 
+***New:*** You can customize the Advertising Messages (ADMESS table 0x1d) using the [web-based editor](https://html-preview.github.io/?url=https://github.com/hharte/mm_manager/blob/main/html/admess_editor.html).  Upload your mm_table_1d.bin file, modify it as needed, and then download the updated version from the webpage.
+
 Some of the important tables for configuring a Millennium terminal include:
 
 

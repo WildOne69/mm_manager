@@ -8,7 +8,7 @@
 # USA: https://www.nanpa.com/reports/co-code-reports/cocodes_assign
 # Canada: http://www.cnac.ca/co_codes/co_code_status.htm
 #
-# All NPA-NXX in the USA: wget https://nationalnanpa.com/nanp1/allutlzd.zip
+# All NPA-NXX in the USA: wget https://reports.nanpa.com/public/CoCodeAssignment_Utilized_AllStates_Public.zip
 # All NPA-NXX in  Canada: wget http://www.cnac.ca/data/COCodeStatus_ALL.zip
 #
 # usage: generate_lcd.py [-h] [--debug DEBUG] [--country COUNTRY] [--state STATE]
@@ -40,7 +40,7 @@ print("(c) 2020-2022, Howard M. Harte\n")
 print("Terminal NPA: " + args.npa)
 
 if args.country == 'US':
-    source_filename = 'allutlzd.txt'
+    source_filename = 'CoCodeAssignment_Utilized_AllStates_Public.txt'
     if args.datafile: source_filename = args.datafile
 
     print("Reading " + args.country + " data from " + source_filename)
@@ -51,7 +51,7 @@ if args.country == 'US':
             df = pandas.read_csv(source_filename, dtype={'NPA-NXX': object}, sep=' *\t', engine='python')
     except OSError:
         print("Error: Cannot read NPA-NXX data file.")
-        print("Please download https://nationalnanpa.com/nanp1/allutlzd.zip and unzip it into the current directory.")
+        print("Please download https://reports.nanpa.com/public/CoCodeAssignment_Utilized_AllStates_Public.zip and unzip it into the current directory.")
         exit()
 
     df["NPA-NXX"].fillna("0", inplace = True)
